@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload to GCS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0e0e0e;
+      --surface: #161616;
+      --border:  #2a2a2a;
+      --accent:  #4ade80;
+      --muted:   #555;
+      --text:    #e8e8e8;
+      --error:   #f87171;
+      --mono:    'IBM Plex Mono', monospace;
+      --sans:    'IBM Plex Sans', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 480px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 2.5rem 2.5rem 2rem;
+    }
+
+    .logo {
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      letter-spacing: 0.2em;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-family: var(--mono);
+      font-size: 1.25rem;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 0.4rem;
+    }
+
+    .subtitle {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 2rem;
+      font-weight: 300;
+    }
+
+    /* Drop zone */
+    .drop-zone {
+      border: 1px dashed var(--border);
+      padding: 2.5rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative;
+    }
+    .drop-zone:hover,
+    .drop-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(74, 222, 128, 0.04);
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .drop-icon {
+      width: 28px;
+      height: 28px;
+      margin: 0 auto 0.75rem;
+      opacity: 0.4;
+    }
+
+    .drop-label {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .drop-label span {
+      color: var(--accent);
+    }
+
+    /* File list */
+    #file-list {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.6rem 0.75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-family: var(--mono);
+      font-size: 0.7rem;
+    }
+
+    .file-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      color: var(--text);
+    }
+
+    .file-size { color: var(--muted); flex-shrink: 0; }
+
+    .remove-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+      padding: 0 2px;
+      transition: color 0.1s;
+      flex-shrink: 0;
+    }
+    .remove-btn:hover { color: var(--error); }
+
+    /* Upload button */
+    #upload-btn {
+      margin-top: 1.5rem;
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--accent);
+      color: #0e0e0e;
+      border: none;
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      letter-spacing: 0.1em;
+      font-weight: 500;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      text-transform: uppercase;
+    }
+    #upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    #upload-btn:not(:disabled):hover { opacity: 0.85; }
+
+    /* Progress */
+    .progress-wrap {
+      margin-top: 0.75rem;
+      height: 2px;
+      background: var(--border);
+      display: none;
+    }
+    .progress-bar {
+      height: 100%;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    /* Results */
+    #results {
+      margin-top: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .result-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--mono);
+      font-size: 0.68rem;
+      padding: 0.5rem 0.75rem;
+    }
+    .result-row.ok  { background: rgba(74,222,128,0.07); color: var(--accent); }
+    .result-row.err { background: rgba(248,113,113,0.08); color: var(--error); }
+
+    .dot { font-size: 0.6rem; flex-shrink: 0; }
+
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 2rem 0 1.25rem;
+    }
+
+    .footer {
+      font-size: 0.65rem;
+      color: var(--muted);
+      font-family: var(--mono);
+      line-height: 1.7;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">GCS Upload</div>
+  <h1>Drop files.</h1>
+  <p class="subtitle">Upload directly to Google Cloud Storage.</p>
+
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" multiple />
+    <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+      <path d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M12 4v12M8 8l4-4 4 4"/>
+    </svg>
+    <p class="drop-label">
+      Drag &amp; drop files here<br/>
+      or <span>click to browse</span>
+    </p>
+  </div>
+
+  <div id="file-list"></div>
+
+  <button id="upload-btn" disabled>Upload</button>
+
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-bar" id="progress-bar"></div>
+  </div>
+
+  <div id="results"></div>
+
+  <hr />
+  <p class="footer">
+    Bucket: <span id="bucket-label">—</span><br/>
+    Files uploaded this session: <span id="count-label">0</span>
+  </p>
+</div>
+
+<script>
+  const dropZone   = document.getElementById('drop-zone');
+  const fileInput  = document.getElementById('file-input');
+  const fileList   = document.getElementById('file-list');
+  const uploadBtn  = document.getElementById('upload-btn');
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressBar  = document.getElementById('progress-bar');
+  const results    = document.getElementById('results');
+  const bucketLbl  = document.getElementById('bucket-label');
+  const countLbl   = document.getElementById('count-label');
+
+  let selectedFiles = [];
+  let totalUploaded = 0;
+
+  // Fetch bucket name from health endpoint
+  fetch('/health').then(r => r.json()).then(d => {
+    bucketLbl.textContent = d.bucket || '—';
+  }).catch(() => {});
+
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function renderFiles() {
+    fileList.innerHTML = '';
+    selectedFiles.forEach((f, i) => {
+      const row = document.createElement('div');
+      row.className = 'file-item';
+      row.innerHTML = `
+        <span class="file-name" title="${f.name}">${f.name}</span>
+        <span class="file-size">${formatSize(f.size)}</span>
+        <button class="remove-btn" data-i="${i}" title="Remove">×</button>
+      `;
+      fileList.appendChild(row);
+    });
+    uploadBtn.disabled = selectedFiles.length === 0;
+  }
+
+  fileList.addEventListener('click', e => {
+    const btn = e.target.closest('.remove-btn');
+    if (!btn) return;
+    selectedFiles.splice(+btn.dataset.i, 1);
+    renderFiles();
+  });
+
+  function addFiles(files) {
+    const incoming = Array.from(files);
+    const existing = new Set(selectedFiles.map(f => f.name));
+    incoming.forEach(f => { if (!existing.has(f.name)) selectedFiles.push(f); });
+    renderFiles();
+  }
+
+  fileInput.addEventListener('change', () => addFiles(fileInput.files));
+
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    addFiles(e.dataTransfer.files);
+  });
+
+  uploadBtn.addEventListener('click', async () => {
+    if (!selectedFiles.length) return;
+
+    uploadBtn.disabled = true;
+    results.innerHTML = '';
+    progressWrap.style.display = 'block';
+    progressBar.style.width = '0%';
+
+    const total = selectedFiles.length;
+    let done = 0;
+
+    for (const file of selectedFiles) {
+      const fd = new FormData();
+      fd.append('file', file);
+
+      try {
+        const res = await fetch('/upload', { method: 'POST', body: fd });
+        const data = await res.json();
+        const row = document.createElement('div');
+
+        if (res.ok) {
+          row.className = 'result-row ok';
+          row.innerHTML = `<span class="dot">●</span><span>${file.name} — ${formatSize(data.size)}</span>`;
+          totalUploaded++;
+        } else {
+          row.className = 'result-row err';
+          row.innerHTML = `<span class="dot">●</span><span>${file.name} — ${data.detail || 'error'}</span>`;
+        }
+        results.appendChild(row);
+      } catch (err) {
+        const row = document.createElement('div');
+        row.className = 'result-row err';
+        row.innerHTML = `<span class="dot">●</span><span>${file.name} — network error</span>`;
+        results.appendChild(row);
+      }
+
+      done++;
+      progressBar.style.width = ((done / total) * 100) + '%';
+      countLbl.textContent = totalUploaded;
+    }
+
+    selectedFiles = [];
+    fileInput.value = '';
+    renderFiles();
+    uploadBtn.disabled = true;
+  });
+</script>
+</body>
+</html>

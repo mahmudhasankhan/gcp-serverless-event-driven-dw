@@ -3,28 +3,16 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from google.cloud import storage
 from google.api_core.exceptions import GoogleAPIError
 
-from pathlib import Path
 
 import os
+GCS_BUCKET_NAME = os.getenv("GCS_BUCKET_NAME")
 
 app = FastAPI(title="GCS File Uploader")
 
 
-# --- Path ------------------------------------------------------------
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-SERVICE_ACCOUNT = BASE_DIR / "include" / "gcp" / "sales-upload-bucket-service-account-key.json"
-
-BUCKET_NAME = 'sales-dw-bucket'
-
-# ── Credentials ──────────────────────────────────────────────────────────────────
-os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = str(SERVICE_ACCOUNT)
-
-
-
 def get_bucket():
     client = storage.Client()
-    return client.bucket(BUCKET_NAME)
+    return client.bucket(GCS_BUCKET_NAME)
 
 
 # ── Routes ───────────────────────────────────────────────────────────────────
@@ -52,7 +40,7 @@ async def upload_file(file: UploadFile = File(...)):
         return JSONResponse({
             "success": True,
             "filename": file.filename,
-            "bucket": BUCKET_NAME
+            "bucket": GCS_BUCKET_NAME
         })
 
     except GoogleAPIError as e:
@@ -63,4 +51,4 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "bucket": BUCKET_NAME}
+    return {"status": "ok", "bucket": GCS_BUCKET_NAME}

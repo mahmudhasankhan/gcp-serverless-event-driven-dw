@@ -2,7 +2,7 @@ sales_dw_pipeline:
   outputs:
     dev:
       type: bigquery
-      method: service-account      # uses attached Cloud Run SA — no JSON file needed
+      method: oauth  # uses ADC — picks up Cloud Run attached SA automatically
       project: "{{ env_var('DBT_PROJECT', 'sales-datawarehouse') }}"
       dataset: "{{ env_var('DBT_DATASET', 'staging') }}"
       location: "{{ env_var('DBT_LOCATION', 'asia-south2') }}"

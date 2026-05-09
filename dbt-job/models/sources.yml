@@ -6,3 +6,127 @@ sources:
     schema: raw_data
     tables:
       - name: sales
+        description: |
+          Raw monthly sales data loaded by the Cloud Run extract-and-load function.
+          One row per order line item (order_id + product_name).
+          Loaded in append mode — batch_id prevents duplicate monthly loads.
+
+        freshness:
+          warn_after:  { count: 40, period: day }
+          error_after: { count: 60, period: day }
+        loaded_at_field: loaded_at
+
+        columns:
+
+          # ── Keys ───────────────────────────────────────────────────────────
+
+          - name: order_id
+            description: "Order identifier. Not unique — one order can have multiple products."
+            tests:
+              - not_null:
+                  severity: error      # hard stop — no order_id means we can't identify the record
+
+          - name: customer_id
+            description: "Customer identifier."
+            tests:
+              - not_null:
+                  severity: error      # hard stop — no customer_id breaks dim_customer
+
+          # ── Dates ──────────────────────────────────────────────────────────
+
+          - name: order_date
+            description: "Date the order was placed."
+            tests:
+              - not_null:
+                  severity: error
+
+          - name: shipped_date
+            description: "Date the order was shipped."
+            # not tested — quarantine handles shipped_date < order_date
+
+          # ── Dimensions ─────────────────────────────────────────────────────
+
+          - name: region
+            description: "Sales region."
+            tests:
+              - not_null:
+                  severity: warn
+              - accepted_values:
+                  values: ['North', 'South', 'East', 'West']
+                  severity: warn       # warn not error — new region triggers investigation
+                                       # but shouldn't stop the entire pipeline
+
+          - name: payment_type
+            description: "Payment method used."
+            tests:
+              - not_null:
+                  severity: warn
+              - accepted_values:
+                  values: ['Credit Card', 'Check', 'Cash']
+                  severity: warn
+
+          - name: category
+            description: "Product category."
+            tests:
+              - not_null:
+                  severity: warn
+
+          - name: product_name
+            description: "Product name."
+            tests:
+              - not_null:
+                  severity: error      # hard stop — null product_name breaks dim_product
+
+          - name: customer_name
+            description: "Customer company name."
+            tests:
+              - not_null:
+                  severity: warn
+
+          # ── Financials ─────────────────────────────────────────────────────
+          # warn not error — quarantine handles these rows
+          # pipeline continues, bad rows get isolated
+
+          - name: unit_price
+            description: "Price per unit."
+            tests:
+              - not_null:
+                  severity: warn       # quarantine handles null unit_price rows
+
+          - name: quantity
+            description: "Units sold."
+            tests:
+              - not_null:
+                  severity: warn       # quarantine handles null quantity rows
+
+          - name: revenue
+            description: "Total line revenue."
+            tests:
+              - not_null:
+                  severity: warn       # quarantine handles null revenue rows
+
+          - name: shipping_fee
+            description: "Shipping cost."
+            tests:
+              - not_null:
+                  severity: warn
+
+          # ── Batch metadata ─────────────────────────────────────────────────
+
+          - name: batch_id
+            description: "Monthly batch identifier — format batch_YYYY_MM."
+            tests:
+              - not_null:
+                  severity: error      # hard stop — missing batch_id means load function failed
+
+          - name: source_file_name
+            description: "Name of the Excel file that was uploaded."
+            tests:
+              - not_null:
+                  severity: error      # hard stop — missing source_file means load function failed
+
+          - name: loaded_at
+            description: "Timestamp of when the row was loaded. Used for freshness checks."
+            tests:
+              - not_null:
+                  severity: error

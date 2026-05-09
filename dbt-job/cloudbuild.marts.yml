@@ -29,8 +29,8 @@ steps:
       - "--cpu=1"
       - "--max-retries=1"
       - "--task-timeout=1800"
-      - "--service-account=dbt-runner-sa@$PROJECT_ID.iam.gserviceaccount.com"
-      - "--set-env-vars=DBT_PROJECT=$PROJECT_ID,DBT_DATASET=staging,DBT_LOCATION=asia-south2"
+      - "--service-account=bigquery-service@sales-datawarehouse.iam.gserviceaccount.com"
+      - "--set-env-vars=DBT_PROJECT=sales-datawarehouse,DBT_DATASET=staging,DBT_LOCATION=asia-south2"
 
 images:
   - "gcr.io/$PROJECT_ID/dbt-marts-test"

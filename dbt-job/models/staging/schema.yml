@@ -1,269 +1,112 @@
 version: 2
 
 models:
-  - name: stg_raw_sales
-    description: |
-      Staged sales transaction data with basic type casting and column renaming.
-      Each row represents a single product line item within an order.
-      
-      Known data quality issues in source:
-      - Some rows have null unit_price and quantity values
-      - Some orders have shipped_date before order_date
-      
-      These issues should be filtered in downstream models or flagged for investigation.
-    
-    columns:
-      - name: order_id
-        description: "Order identifier - not unique as orders can contain multiple products"
-        tests:
-          - not_null
-
-      - name: order_date
-        description: "Date when the order was placed"
-        tests:
-          - not_null
-
-      - name: customer_id
-        description: "Unique identifier for the customer"
-        tests:
-          - not_null
-
-      - name: customer_name
-        description: "Name of the customer company"
-        tests:
-          - not_null
-
-      - name: city
-        description: "Customer's city"
-        tests:
-          - not_null
-
-      - name: state
-        description: "Customer's state/province"
-        tests:
-          - not_null
-
-      - name: country
-        description: "Customer's country"
-        tests:
-          - not_null
-
-      - name: sales_person
-        description: "Name of the salesperson handling the account"
-        tests:
-          - not_null
-
-      - name: region
-        description: "Sales region (North, South, East, West)"
-        tests:
-          - not_null
-          - accepted_values:
-              values: ['North', 'South', 'East', 'West']
-
-      - name: shipped_date
-        description: "Date when the order was shipped"
-        tests:
-          - not_null
-
-      - name: shipper_name
-        description: "Name of the shipping company"
-        tests:
-          - not_null
-
-      - name: ship_name
-        description: "Name of the recipient"
-
-      - name: ship_address
-        description: "Shipping street address"
-
-      - name: ship_city
-        description: "Shipping city"
-        tests:
-          - not_null
-
-      - name: ship_country
-        description: "Shipping country"
-        tests:
-          - not_null
-
-      - name: payment_type
-        description: "Method of payment used"
-        tests:
-          - not_null
-          - accepted_values:
-              values: ['Credit Card', 'Check', 'Cash']
-
-      - name: product_name
-        description: "Name of the product sold"
-        tests:
-          - not_null
-
-      - name: category
-        description: "Product category"
-        tests:
-          - not_null
-
-      - name: unit_price
-        description: "Price per unit of the product"
-        tests:
-          - not_null:
-              config:
-                severity: warn
-
-      - name: quantity
-        description: "Number of units sold"
-        tests:
-          - not_null:
-              config:
-                severity: warn
-
-      - name: revenue
-        description: "Total revenue for the line item (unit_price * quantity)"
-        tests:
-          - not_null:
-              config:
-                severity: warn
-
-      - name: shipping_fee
-        description: "Shipping fee charged for the order"
-        tests:
-          - not_null
-
-      - name: revenue_bins
-        description: "Revenue grouped into bins/ranges for analysis"
-      
-      - name: batch_id 
-        description: "unique id for loaded batch"
-      
-      - name: loaded_at 
-        description: "timestamp of the data load"
-
   - name: stg_sales
     description: |
-      Clean sales data after checking data quality issues 
-    
+      Single staging model that replaces stg_raw_sales + stg_sales.
+
+      Reads directly from raw_data.sales, casts and trims all columns,
+      tags each row with a quality_issue reason, writes bad rows to
+      quarantine.stg_sales_rejected_YYYYMMDD in BigQuery, and returns
+      only clean rows downstream.
+
+      Bad row conditions:
+        - null order_id or customer_id
+        - null or non-positive unit_price or quantity
+        - null or negative revenue
+        - shipped_date before order_date
+
     columns:
       - name: order_id
-        description: "Order identifier - not unique as orders can contain multiple products"
+        description: "Order identifier — not unique, orders can have multiple products"
         tests:
           - not_null
 
       - name: order_date
-        description: "Date when the order was placed"
+        description: "Date the order was placed"
         tests:
           - not_null
 
       - name: customer_id
-        description: "Unique identifier for the customer"
+        description: "Unique customer identifier"
         tests:
           - not_null
 
       - name: customer_name
-        description: "Name of the customer company"
+        description: "Customer company name"
         tests:
           - not_null
 
       - name: city
-        description: "Customer's city"
         tests:
           - not_null
 
       - name: state
-        description: "Customer's state/province"
         tests:
           - not_null
 
       - name: country
-        description: "Customer's country"
         tests:
           - not_null
 
       - name: sales_person
-        description: "Name of the salesperson handling the account"
         tests:
           - not_null
 
       - name: region
-        description: "Sales region (North, South, East, West)"
         tests:
           - not_null
           - accepted_values:
               values: ['North', 'South', 'East', 'West']
 
       - name: shipped_date
-        description: "Date when the order was shipped"
+        description: "Date order was shipped — always >= order_date after quarantine filter"
         tests:
           - not_null
 
       - name: shipper_name
-        description: "Name of the shipping company"
-        tests:
-          - not_null
-
-      - name: ship_name
-        description: "Name of the recipient"
-
-      - name: ship_address
-        description: "Shipping street address"
-
-      - name: ship_city
-        description: "Shipping city"
-        tests:
-          - not_null
-
-      - name: ship_country
-        description: "Shipping country"
         tests:
           - not_null
 
       - name: payment_type
-        description: "Method of payment used"
         tests:
           - not_null
           - accepted_values:
               values: ['Credit Card', 'Check', 'Cash']
 
       - name: product_name
-        description: "Name of the product sold"
         tests:
           - not_null
 
       - name: category
-        description: "Product category"
         tests:
           - not_null
 
       - name: unit_price
-        description: "Price per unit of the product"
-        tests:
-          - not_null:
-              config:
-                severity: error 
-
-      - name: quantity
-        description: "Number of units sold"
-        tests:
-          - not_null:
-              config:
-                severity: error 
-
-      - name: revenue
-        description: "Total revenue for the line item (unit_price * quantity)"
-        tests:
-          - not_null:
-              config:
-                severity: error 
-
-      - name: shipping_fee
-        description: "Shipping fee charged for the order"
+        description: "Always > 0 after quarantine filter"
         tests:
           - not_null
 
-      - name: revenue_bins
-        description: "Revenue grouped into bins/ranges for analysis"
-      
-      - name: batch_id 
-        description: "unique id for loaded batch"
-      
-      - name: loaded_at 
-        description: "timestamp of the data load"
+      - name: quantity
+        description: "Always > 0 after quarantine filter"
+        tests:
+          - not_null
+
+      - name: revenue
+        description: "Always >= 0 after quarantine filter"
+        tests:
+          - not_null
+
+      - name: shipping_fee
+        tests:
+          - not_null
+
+      - name: batch_id
+        description: "Monthly batch identifier — format batch_YYYY_MM"
+        tests:
+          - not_null
+
+      - name: loaded_at
+        description: "Timestamp of when the batch was loaded into BigQuery"
+        tests:
+          - not_null

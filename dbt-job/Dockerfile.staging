@@ -4,24 +4,26 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install dbt and BigQuery adapter
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy the full dbt project
 COPY dbt_project.yml packages.yml profiles.yml ./
 COPY models/ models/
 COPY macros/ macros/
 COPY tests/ tests/
 
-# Job 1 runs in sequence:
+# Job 1 sequence:
 # 1. install dbt packages (dbt_utils)
-# 2. test the raw source table in BigQuery before touching anything
-# 3. materialise staging views (stg_raw_sales, stg_sales)
-# 4. run all staging tests including custom assert_ tests
+# 2. check freshness of raw_data.sales — warns if > 40 days, errors if > 60 days
+# 3. test raw source table directly in BigQuery
+# 4. quarantine bad rows from raw → quarantine.stg_sales_rejected_YYYYMMDD
+# 5. materialise stg_sales view (good rows only)
+# 6. test stg_sales — validates clean data made it through correctly
 CMD ["sh", "-c", \
      "dbt deps && \
+      dbt source freshness && \
       dbt test --select source:raw_data && \
+      dbt run-operation quarantine_bad_rows && \
       dbt run  --select staging && \
       dbt test --select staging"]

@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install dbt and BigQuery adapter
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy the full dbt project
+COPY dbt_project.yml packages.yml profiles.yml ./
+COPY models/ models/
+COPY macros/ macros/
+
+# Job 2 runs the full mart layer transformation:
+# dims → fact → rankings → ytd/mtd/qtd → revenue models
+# dbt resolves ref() dependencies automatically — runs in correct order
+CMD ["sh", "-c", \
+     "dbt deps && \
+      dbt run --select marts"]

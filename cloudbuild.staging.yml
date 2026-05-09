@@ -1,0 +1,36 @@
+steps:
+  # Step 1 — Build the Docker image
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "build"
+      - "-f"
+      - "Dockerfile.staging"
+      - "-t"
+      - "gcr.io/$PROJECT_ID/dbt-staging"
+      - "."
+
+  # Step 2 — Push image to Artifact Registry
+  - name: "gcr.io/cloud-builders/docker"
+    args:
+      - "push"
+      - "gcr.io/$PROJECT_ID/dbt-staging"
+
+  # Step 3 — Deploy as a Cloud Run Job
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: "gcloud"
+    args:
+      - "run"
+      - "jobs"
+      - "deploy"
+      - "dbt-staging-job"
+      - "--image=gcr.io/$PROJECT_ID/dbt-staging"
+      - "--region=asia-south2"
+      - "--memory=2Gi"
+      - "--cpu=1"
+      - "--max-retries=1"
+      - "--task-timeout=1800"
+      - "--service-account=dbt-runner-sa@$PROJECT_ID.iam.gserviceaccount.com"
+      - "--set-env-vars=DBT_PROJECT=$PROJECT_ID,DBT_DATASET=staging,DBT_LOCATION=asia-south2"
+
+images:
+  - "gcr.io/$PROJECT_ID/dbt-staging"

@@ -1,0 +1,27 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install dbt and BigQuery adapter
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy the full dbt project
+COPY dbt_project.yml packages.yml profiles.yml ./
+COPY models/ models/
+COPY macros/ macros/
+COPY tests/ tests/
+
+# Job 1 runs in sequence:
+# 1. install dbt packages (dbt_utils)
+# 2. test the raw source table in BigQuery before touching anything
+# 3. materialise staging views (stg_raw_sales, stg_sales)
+# 4. run all staging tests including custom assert_ tests
+CMD ["sh", "-c", \
+     "dbt deps && \
+      dbt test --select source:raw_data && \
+      dbt run  --select staging && \
+      dbt test --select staging"]

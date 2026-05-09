@@ -1,0 +1,24 @@
+FROM python:3.11-slim
+
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install dbt and BigQuery adapter
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy the full dbt project
+# tests/ included because custom assert_ tests run against marts too
+COPY dbt_project.yml packages.yml profiles.yml ./
+COPY models/ models/
+COPY macros/ macros/
+COPY tests/ tests/
+
+# Job 3 tests every mart model — dims, fact, rankings, ytd/mtd/qtd, revenue models
+# If any test fails, the Cloud Run Job exits with a non-zero code
+# Composer detects the failure and stops the DAG + sends alert email
+CMD ["sh", "-c", \
+     "dbt deps && \
+      dbt test --select marts"]

@@ -1,0 +1,561 @@
+version: 2
+
+models:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # DIMENSIONS
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - name: dim_customer
+    description: >
+      Customer dimension derived from stg_sales.
+      One row per unique customer_id. Surrogate key generated from customer_id.
+    columns:
+      - name: customer_key
+        description: "Surrogate primary key"
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_id
+        description: "Natural key from source"
+        tests:
+          - unique
+          - not_null
+
+      - name: customer_name
+        description: "Customer company name"
+        tests:
+          - not_null
+
+  - name: dim_product
+    description: >
+      Product dimension derived from stg_sales.
+      One row per unique product_name. Surrogate key generated from product_name.
+    columns:
+      - name: product_key
+        description: "Surrogate primary key"
+        tests:
+          - unique
+          - not_null
+
+      - name: product_name
+        description: "Product name — natural key"
+        tests:
+          - unique
+          - not_null
+
+      - name: category
+        description: "Product category"
+        tests:
+          - not_null
+
+  - name: dim_salesperson
+    description: >
+      Salesperson dimension derived from stg_sales.
+      One row per unique sales_person name.
+    columns:
+      - name: sales_person_key
+        description: "Surrogate primary key"
+        tests:
+          - unique
+          - not_null
+
+      - name: sales_person
+        description: "Salesperson name — natural key"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_shipper
+    description: >
+      Shipper dimension derived from stg_sales.
+      One row per unique shipper_name.
+    columns:
+      - name: shipper_key
+        description: "Surrogate primary key"
+        tests:
+          - unique
+          - not_null
+
+      - name: shipper_name
+        description: "Shipping company name — natural key"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_region
+    description: >
+      Region dimension derived from stg_sales.
+      Composite surrogate key from city + state + country + region.
+    columns:
+      - name: region_key
+        description: "Composite surrogate primary key"
+        tests:
+          - unique
+          - not_null
+
+      - name: city
+        description: "Customer city"
+        tests:
+          - not_null
+
+      - name: state
+        description: "Customer state"
+        tests:
+          - not_null
+
+      - name: country
+        description: "Customer country"
+        tests:
+          - not_null
+
+      - name: region
+        description: "Sales region"
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['North', 'South', 'East', 'West']
+
+  - name: dim_payment_type
+    description: >
+      Payment type dimension derived from stg_sales.
+      One row per unique payment_type value.
+    columns:
+      - name: payment_type_key
+        description: "Surrogate primary key"
+        tests:
+          - unique
+          - not_null
+
+      - name: payment_type
+        description: "Payment method — natural key"
+        tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['Credit Card', 'Check', 'Cash']
+
+  - name: dim_date
+    description: >
+      Date dimension built from dbt_utils.date_spine (2020-01-01 to 2026-12-31).
+      Joined twice in fct_grocery_sales — once for order_date, once for shipped_date.
+    columns:
+      - name: date_key
+        description: "Surrogate primary key generated from date"
+        tests:
+          - unique
+          - not_null
+
+      - name: date
+        description: "Calendar date"
+        tests:
+          - unique
+          - not_null
+
+      - name: year
+        description: "Calendar year"
+        tests:
+          - not_null
+
+      - name: month
+        description: "Calendar month (1-12)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1,2,3,4,5,6,7,8,9,10,11,12]
+
+      - name: quarter
+        description: "Calendar quarter (1-4)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1,2,3,4]
+
+      - name: day_of_week
+        description: "Day of week (1=Sunday, 7=Saturday in BigQuery)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1,2,3,4,5,6,7]
+
+      - name: is_weekend
+        description: "Boolean flag for weekend days"
+        tests:
+          - not_null
+
+      - name: is_weekday
+        description: "Boolean flag for weekday"
+        tests:
+          - not_null
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # FACT
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - name: fct_grocery_sales
+    description: >
+      Central fact table. Grain is one row per order_id + product_name.
+      Surrogate key generated from both. All FKs join to dimension tables.
+    columns:
+      - name: sale_key
+        description: "Surrogate primary key — order_id + product_name"
+        tests:
+          - unique
+          - not_null
+
+      - name: order_id
+        description: "Natural order identifier — not unique (multi-line orders)"
+        tests:
+          - not_null
+
+      - name: customer_key
+        description: "FK to dim_customer"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_customer')
+              field: customer_key
+
+      - name: product_key
+        description: "FK to dim_product"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_product')
+              field: product_key
+
+      - name: salesperson_key
+        description: "FK to dim_salesperson"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_salesperson')
+              field: sales_person_key
+
+      - name: shipper_key
+        description: "FK to dim_shipper"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_shipper')
+              field: shipper_key
+
+      - name: region_key
+        description: "FK to dim_region"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_region')
+              field: region_key
+
+      - name: payment_type_key
+        description: "FK to dim_payment_type"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_payment_type')
+              field: payment_type_key
+
+      - name: order_date_key
+        description: "FK to dim_date for order date"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_key
+
+      - name: shipped_date_key
+        description: "FK to dim_date for shipped date"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_key
+
+      - name: unit_price
+        description: "Price per unit"
+        tests:
+          - not_null
+
+      - name: quantity
+        description: "Units sold"
+        tests:
+          - not_null
+
+      - name: revenue
+        description: "Total line item revenue"
+        tests:
+          - not_null
+
+      - name: shipping_fee
+        description: "Shipping cost"
+        tests:
+          - not_null
+
+      - name: sale_count
+        description: "Always 1 — used for counting sales in aggregations"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1]
+
+      - name: batch_id
+        description: "Monthly batch identifier"
+        tests:
+          - not_null
+
+      - name: loaded_at
+        description: "Load timestamp"
+        tests:
+          - not_null
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # MART MODELS — REVENUE
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - name: monthly_revenue_growth
+    description: >
+      Monthly revenue aggregation with month-over-month growth rate.
+      One row per year + month combination.
+    columns:
+      - name: year
+        description: "Calendar year"
+        tests:
+          - not_null
+
+      - name: month
+        description: "Calendar month (1-12)"
+        tests:
+          - not_null
+
+      - name: month_name
+        description: "Month name (January, February, etc.)"
+        tests:
+          - not_null
+
+      - name: total_revenue
+        description: "Total revenue for the month"
+        tests:
+          - not_null
+
+  - name: quarterly_revenue_growth
+    description: >
+      Quarterly revenue aggregation with quarter-over-quarter growth rate.
+    columns:
+      - name: year
+        description: "Calendar year"
+        tests:
+          - not_null
+
+      - name: quarter
+        description: "Calendar quarter (1-4)"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [1,2,3,4]
+
+      - name: total_revenue
+        description: "Total revenue for the quarter"
+        tests:
+          - not_null
+
+  - name: yearly_revenue_growth
+    description: >
+      Yearly revenue aggregation with year-over-year growth rate.
+    columns:
+      - name: year
+        description: "Calendar year"
+        tests:
+          - unique
+          - not_null
+
+      - name: total_revenue
+        description: "Total revenue for the year"
+        tests:
+          - not_null
+
+  - name: revenue_qty_sales_trend_by_year_quarter_month
+    description: >
+      Revenue, quantity and sales count trend broken down by year, quarter and month.
+    columns:
+      - name: year
+        description: "Calendar year"
+        tests:
+          - not_null
+
+      - name: quarter
+        description: "Calendar quarter"
+        tests:
+          - not_null
+
+      - name: month
+        description: "Calendar month"
+        tests:
+          - not_null
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # MART MODELS — RANKINGS
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - name: city_rank_by_revenue_qty_sales
+    description: "Cities ranked by total revenue, quantity, and sales count."
+    columns:
+      - name: city
+        description: "City name"
+        tests:
+          - unique
+          - not_null
+
+      - name: total_revenue
+        description: "Aggregated revenue for the city"
+        tests:
+          - not_null
+
+      - name: rank_by_revenue
+        description: "Revenue rank — 1 is highest"
+        tests:
+          - not_null
+          - unique
+
+  - name: customer_rank_by_revenue_qty_sales
+    description: "Customers ranked by total revenue, quantity, and sales count."
+    columns:
+      - name: total_revenue
+        description: "Aggregated revenue for the customer"
+        tests:
+          - not_null
+
+      - name: rank_by_revenue
+        description: "Revenue rank — 1 is highest"
+        tests:
+          - not_null
+
+  - name: product_rank_by_revenue_qty_sales
+    description: "Products ranked by total revenue, quantity, and sales count."
+    columns:
+      - name: product_name
+        description: "Product name"
+        tests:
+          - unique
+          - not_null
+
+      - name: total_revenue
+        description: "Aggregated revenue for the product"
+        tests:
+          - not_null
+
+      - name: rank_by_revenue
+        description: "Revenue rank — 1 is highest"
+        tests:
+          - not_null
+          - unique
+
+  - name: region_rank_by_revenue_qty_sales
+    description: "Regions ranked by total revenue, quantity, and sales count."
+    columns:
+      - name: region
+        description: "Sales region"
+        tests:
+          - unique
+          - not_null
+          - accepted_values:
+              values: ['North', 'South', 'East', 'West']
+
+      - name: total_revenue
+        description: "Aggregated revenue for the region"
+        tests:
+          - not_null
+
+      - name: rank_by_revenue
+        description: "Revenue rank — 1 is highest"
+        tests:
+          - not_null
+          - unique
+
+  - name: salesperson_rank_by_revenue_qty_sales
+    description: "Salespersons ranked by total revenue, quantity, and sales count."
+    columns:
+      - name: total_revenue
+        description: "Aggregated revenue for the salesperson"
+        tests:
+          - not_null
+
+      - name: rank_by_revenue
+        description: "Revenue rank — 1 is highest"
+        tests:
+          - not_null
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # MART MODELS — YTD / MTD / QTD
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - name: ytd_revenue_qty_shipment_growth
+    description: "Year-to-date cumulative revenue, quantity and shipping fee with growth rates."
+    columns:
+      - name: date
+        description: "Calendar date"
+        tests:
+          - unique
+          - not_null
+
+      - name: year
+        description: "Calendar year"
+        tests:
+          - not_null
+
+      - name: daily_revenue
+        description: "Revenue for the specific day"
+        tests:
+          - not_null
+
+      - name: ytd_revenue
+        description: "Cumulative year-to-date revenue"
+        tests:
+          - not_null
+
+  - name: mtd_revenue_qty_shipment_growth
+    description: "Month-to-date cumulative revenue, quantity and shipping fee with growth rates."
+    columns:
+      - name: date
+        description: "Calendar date"
+        tests:
+          - unique
+          - not_null
+
+      - name: daily_revenue
+        description: "Revenue for the specific day"
+        tests:
+          - not_null
+
+  - name: qtd_revenue_qty_shipment_growth
+    description: "Quarter-to-date cumulative revenue, quantity and shipping fee with growth rates."
+    columns:
+      - name: date
+        description: "Calendar date"
+        tests:
+          - unique
+          - not_null
+
+      - name: daily_revenue
+        description: "Revenue for the specific day"
+        tests:
+          - not_null
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # MART MODELS — SHIPMENT
+  # ─────────────────────────────────────────────────────────────────────────
+
+  - name: shipment_exp_comparison_by_ship_company
+    description: "Shipping expenditure and order volume comparison by shipping company."
+    columns:
+      - name: shipper_name
+        description: "Shipping company name"
+        tests:
+          - unique
+          - not_null
+
+      - name: total_shipping_fee
+        description: "Total shipping fees paid to the company"
+        tests:
+          - not_null

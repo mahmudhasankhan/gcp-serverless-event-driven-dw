@@ -1,0 +1,12 @@
+sales_dw_pipeline:
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account      # uses attached Cloud Run SA — no JSON file needed
+      project: "{{ env_var('DBT_PROJECT', 'sales-datawarehouse') }}"
+      dataset: "{{ env_var('DBT_DATASET', 'staging') }}"
+      location: "{{ env_var('DBT_LOCATION', 'asia-south2') }}"
+      threads: 4
+      job_execution_timeout_seconds: 7200
+      job_retries: 1
+  target: dev

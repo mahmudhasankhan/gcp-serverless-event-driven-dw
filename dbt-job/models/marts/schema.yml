@@ -164,6 +164,7 @@ models:
           - not_null
           - accepted_values:
               values: [1,2,3,4,5,6,7,8,9,10,11,12]
+              quote: false
 
       - name: quarter
         description: "Calendar quarter (1-4)"
@@ -171,6 +172,7 @@ models:
           - not_null
           - accepted_values:
               values: [1,2,3,4]
+              quote: false
 
       - name: day_of_week
         description: "Day of week (1=Sunday, 7=Saturday in BigQuery)"
@@ -178,6 +180,7 @@ models:
           - not_null
           - accepted_values:
               values: [1,2,3,4,5,6,7]
+              quote: false
 
       - name: is_weekend
         description: "Boolean flag for weekend days"
@@ -299,6 +302,7 @@ models:
           - not_null
           - accepted_values:
               values: [1]
+              quote: false
 
       - name: batch_id
         description: "Monthly batch identifier"
@@ -354,6 +358,7 @@ models:
           - not_null
           - accepted_values:
               values: [1,2,3,4]
+              quote: false
 
       - name: total_revenue
         description: "Total revenue for the quarter"
@@ -555,7 +560,7 @@ models:
           - unique
           - not_null
 
-      - name: total_shipping_fee
+      - name: total_shipping_fees
         description: "Total shipping fees paid to the company"
         tests:
           - not_null

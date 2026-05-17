@@ -33,9 +33,9 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.utils.trigger_rule import TriggerRule
 
 # ── Config ────────────────────────────────────────────────────────────────────
-PROJECT_ID  = os.environ.get('PROJECT_ID',  'sales-datawarehouse')
-REGION      = os.environ.get('REGION',      'asia-south2')
-ALERT_EMAIL = os.environ.get('ALERT_EMAIL', 'your-email@gmail.com')
+PROJECT_ID  = os.getenv('PROJECT_ID')
+REGION      = os.getenv('REGION')
+ALERT_EMAIL = os.getenv('ALERT_EMAIL')
 
 logger = logging.getLogger(__name__)
 
@@ -53,13 +53,7 @@ default_args = {
 # Defined outside the DAG so it can be reused across all three task groups
 # without duplication. TaskFlow @task functions are reusable like regular Python.
 
-def _make_log_task(task_id: str, job_name: str, status: str, trigger_rule: TriggerRule):
-    """
-    Factory that produces a @task decorated logging function with a unique task_id.
-    Needed because @task decorated functions used multiple times in one DAG
-    each need a distinct task_id.
-    """
-    def _make_log_task(task_id: str, upstream_task_id: str, job_name: str, status: str, trigger_rule: TriggerRule):
+def _make_log_task(task_id: str, upstream_task_id: str, job_name: str, status: str, trigger_rule: TriggerRule):
     """
     Factory that produces a @task decorated logging function with a unique task_id.
     Pulls duration metrics dynamically from the specified upstream task.
@@ -89,7 +83,6 @@ def _make_log_task(task_id: str, job_name: str, status: str, trigger_rule: Trigg
             "══════════════════════════════════════════"
         )
     return log_job_status
-
 
 # ── DAG ───────────────────────────────────────────────────────────────────────
 
@@ -127,6 +120,7 @@ def transform():
 
         log_success = _make_log_task(
             task_id='log_staging_success',
+            upstream_task_id='test_raw_data_group.execute_staging_job',
             job_name='dbt-staging-job',
             status='SUCCESS ✅',
             trigger_rule=TriggerRule.ALL_SUCCESS,
@@ -134,6 +128,7 @@ def transform():
 
         log_failure = _make_log_task(
             task_id='log_staging_failure',
+            upstream_task_id='test_raw_data_group.execute_staging_job',
             job_name='dbt-staging-job',
             status='FAILED ❌',
             trigger_rule=TriggerRule.ONE_FAILED,
@@ -182,6 +177,7 @@ def transform():
 
         log_success = _make_log_task(
             task_id='log_transform_success',
+            upstream_task_id='transform_data_group.execute_transform_job',
             job_name='dbt-transform-job',
             status='SUCCESS ✅',
             trigger_rule=TriggerRule.ALL_SUCCESS,
@@ -189,6 +185,7 @@ def transform():
 
         log_failure = _make_log_task(
             task_id='log_transform_failure',
+            upstream_task_id='transform_data_group.execute_transform_job',
             job_name='dbt-transform-job',
             status='FAILED ❌',
             trigger_rule=TriggerRule.ONE_FAILED,
@@ -217,6 +214,7 @@ def transform():
 
         log_success = _make_log_task(
             task_id='log_marts_test_success',
+            upstream_task_id='test_marts_group.execute_marts_test_job',
             job_name='dbt-marts-test-job',
             status='ALL TESTS PASSED ✅',
             trigger_rule=TriggerRule.ALL_SUCCESS,
@@ -224,6 +222,7 @@ def transform():
 
         log_failure = _make_log_task(
             task_id='log_marts_test_failure',
+            upstream_task_id='test_marts_group.execute_marts_test_job',
             job_name='dbt-marts-test-job',
             status='TESTS FAILED ❌',
             trigger_rule=TriggerRule.ONE_FAILED,
@@ -245,7 +244,7 @@ def transform():
         to=ALERT_EMAIL,
         subject='[FAILED] ELT Pipeline — {{ dag.dag_id }} — {{ ds }}',
         html_content="""
-        <h2 style="color:red;">❌ Stratum ELT Pipeline Failed</h2>
+        <h2 style="color:red;">❌ ELT Pipeline Failed</h2>
         <table>
             <tr><td><b>DAG</b></td><td>{{ dag.dag_id }}</td></tr>
             <tr><td><b>Execution Date</b></td><td>{{ ds }}</td></tr>
@@ -261,7 +260,7 @@ def transform():
         to=ALERT_EMAIL,
         subject='[SUCCESS] ELT Pipeline — {{ dag.dag_id }} — {{ ds }}',
         html_content="""
-        <h2 style="color:green;">✅ Stratum ELT Pipeline Completed Successfully</h2>
+        <h2 style="color:green;">✅ ELT Pipeline Completed Successfully</h2>
         <table>
             <tr><td><b>DAG</b></td><td>{{ dag.dag_id }}</td></tr>
             <tr><td><b>Execution Date</b></td><td>{{ ds }}</td></tr>

@@ -1,18 +1,18 @@
-{# {{
+{ {{
     config(
         materialized='incremental',
         unique_key='sale_key',
-        on_schema_change='fail'
+        on_schema_change='sync_all_columns'
     )
-}} #}
+}} }
 
 
 WITH sales AS (
     SELECT * FROM {{ ref('stg_sales') }}
-    {# {% if is_incremental() %} #}
-    -- Only process new batches that don't exist in the fact table yet
-    {# WHERE batch_id NOT IN (SELECT DISTINCT batch_id FROM {{ this }}) #}
-    {# {% endif %} #}
+    {% if is_incremental() %}
+    -- Only scan data that was loaded into staging AFTER the last time this fact table updated
+    WHERE loaded_at > (SELECT MAX(loaded_at) FROM {{ this }})
+    {% endif %}
 ),
 
 dates AS (

@@ -28,6 +28,7 @@ from datetime import datetime, timedelta
 from airflow.decorators import dag, task, task_group
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.email import EmailOperator
+from airflow.operators.python import PythonOperator
 from airflow.providers.google.cloud.operators.cloud_run import CloudRunExecuteJobOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.utils.trigger_rule import TriggerRule
@@ -141,58 +142,58 @@ def transform():
 
         execute_staging_job >> [log_success, log_failure] >> join
 
-    # ── Branch: stop pipeline if staging failed ────────────────────────────────
+    # # ── Branch: stop pipeline if staging failed ────────────────────────────────
 
-    @task.branch(task_id='branch_after_staging', trigger_rule=TriggerRule.ALL_DONE)
-    def branch_after_staging(**context):
-        """
-        Checks the exit state of dbt-staging-job.
-        Routes to transform if successful, failure email if not.
-        """
-        from airflow.utils.state import State
+    # @task.branch(task_id='branch_after_staging', trigger_rule=TriggerRule.ALL_DONE)
+    # def branch_after_staging(**context):
+    #     """
+    #     Checks the exit state of dbt-staging-job.
+    #     Routes to transform if successful, failure email if not.
+    #     """
+    #     from airflow.utils.state import State
 
-        task_instance = context['dag_run'].get_task_instance(
-            'test_raw_data_group.execute_staging_job'
-        )
-        if task_instance and task_instance.state == State.SUCCESS:
-            logger.info("Staging job passed — proceeding to transform.")
-            return 'transform_data_group.execute_transform_job'
+    #     task_instance = context['dag_run'].get_task_instance(
+    #         'test_raw_data_group.execute_staging_job'
+    #     )
+    #     if task_instance and task_instance.state == State.SUCCESS:
+    #         logger.info("Staging job passed — proceeding to transform.")
+    #         return 'transform_data_group.execute_transform_job'
 
-        logger.error("Staging job failed — routing to failure email.")
-        return 'send_failure_email'
+    #     logger.error("Staging job failed — routing to failure email.")
+    #     return 'send_failure_email'
     
-    # ── Branch: stop pipeline if marts test failed ────────────────────────────────
-    @task.branch(task_id='branch_after_marts_test', trigger_rule=TriggerRule.ALL_DONE)
-    def branch_after_marts(**context):
-        """
-        Checks the exit state of dbt-marts-test-job.
-        Routes to either success email or failure email if successful, failure email if not.
-        """
-        from airflow.utils.state import State
+    # # ── Branch: stop pipeline if marts test failed ────────────────────────────────
+    # @task.branch(task_id='branch_after_marts_test', trigger_rule=TriggerRule.ALL_DONE)
+    # def branch_after_marts(**context):
+    #     """
+    #     Checks the exit state of dbt-marts-test-job.
+    #     Routes to either success email or failure email if successful, failure email if not.
+    #     """
+    #     from airflow.utils.state import State
 
-        task_instance = context['dag_run'].get_task_instance(
-            'test_marts_group.execute_marts_test_job'
-        )
-        if task_instance and task_instance.state == State.SUCCESS:
-            logger.info("Marts test passed — sending success email.")
-            return 'send_success_email'
+    #     task_instance = context['dag_run'].get_task_instance(
+    #         'test_marts_group.execute_marts_test_job'
+    #     )
+    #     if task_instance and task_instance.state == State.SUCCESS:
+    #         logger.info("Marts test passed — sending success email.")
+    #         return 'send_success_email'
 
-        logger.error("Marts test failed — routing to failure email.")
-        return 'send_failure_email'
+    #     logger.error("Marts test failed — routing to failure email.")
+    #     return 'send_failure_email'
     
-    @task.branch(task_id='branch_after_transform', trigger_rule=TriggerRule.ALL_DONE)
-    def branch_after_transform(**context):
-        from airflow.utils.state import State
+    # @task.branch(task_id='branch_after_transform', trigger_rule=TriggerRule.ALL_DONE)
+    # def branch_after_transform(**context):
+    #     from airflow.utils.state import State
 
-        task_instance = context['dag_run'].get_task_instance(
-            'transform_data_group.execute_transform_job'
-        )
-        if task_instance and task_instance.state == State.SUCCESS:
-            logger.info("Transform job passed — proceeding to marts test.")
-            return 'test_marts_group.execute_marts_test_job'
+    #     task_instance = context['dag_run'].get_task_instance(
+    #         'transform_data_group.execute_transform_job'
+    #     )
+    #     if task_instance and task_instance.state == State.SUCCESS:
+    #         logger.info("Transform job passed — proceeding to marts test.")
+    #         return 'test_marts_group.execute_marts_test_job'
 
-        logger.error("Transform job failed or skipped — routing to failure email.")
-        return 'send_failure_email'
+    #     logger.error("Transform job failed or skipped — routing to failure email.")
+    #     return 'send_failure_email'
 
     # ── Task Group 2: Transform ────────────────────────────────────────────────
     # dbt-transform-job runs: dbt run --select marts
@@ -226,7 +227,7 @@ def transform():
 
         join = EmptyOperator(
             task_id='join_transform',
-            trigger_rule=TriggerRule.ALL_DONE,
+            trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS,
         )
 
         execute_transform_job >> [log_success, log_failure] >> join
@@ -263,10 +264,33 @@ def transform():
 
         join = EmptyOperator(
             task_id='join_marts_test',
-            trigger_rule=TriggerRule.ALL_DONE,
+            trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS,
         )
 
         execute_marts_test_job >> [log_success, log_failure] >> join
+
+    # Final Pipeline Success
+    log_pipeline_success = PythonOperator(
+        task_id='log_pipeline_success',
+        python_callable=lambda **context: logging.info(
+            f"""
+            ==========================================
+            🎉 DBT PIPELINE COMPLETED SUCCESSFULLY 🎉
+            ==========================================
+            DAG: {context['dag'].dag_id}
+            Execution Date: {context['ds']}
+            Run ID: {context['run_id']}
+            Summary:
+              ✅ Raw data tested
+              ✅ Data transformed
+              ✅ All tests passed
+            Status: PIPELINE COMPLETE
+            Data is ready for downstream consumption.
+            ==========================================
+            """
+        ),
+        trigger_rule='all_success',
+    )
 
     # ── Email operators ────────────────────────────────────────────────────────
     # EmailOperator is a traditional operator — stays as-is in TaskFlow DAGs.
@@ -326,25 +350,17 @@ def transform():
     # ── Dependencies ───────────────────────────────────────────────────────────
 
     staging_group = test_raw_data_group()
-    branch_staging = branch_after_staging()
     transform_group = transform_data_group()
-    branch_transform = branch_after_transform()
     marts_group = test_marts_group()
-    branch_marts = branch_after_marts()
 
     # main flow
-    start >> staging_group >> branch_staging
+    start >> staging_group >> transform_group >> marts_group
 
-    # staging pass → transform → branch → marts → branch → email
-    branch_staging >> transform_group >> branch_transform
-    branch_transform >> marts_group >> branch_marts
+    # set dependencies for final status tasks
+    marts_group >> log_pipeline_success >> send_success_email >> end
 
-    # explicit failure/skip routing at every stage
-    branch_staging >> send_failure_email
-    branch_transform >> send_failure_email
-    branch_marts >> send_success_email >> end
-    branch_marts >> send_failure_email >> end
-    send_failure_email >> end
+    # The failure email should only be triggered if any of the main tasks failed
+    marts_group >> send_failure_email >> end
 
 
 # instantiate the DAG

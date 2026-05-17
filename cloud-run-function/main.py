@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 # The "cloud-platform" scope allows AuthorizedSession to pass the identity via IAM
 AUTH_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 CREDENTIALS, _ = google.auth.default(scopes=[AUTH_SCOPE])
-DAG_ID = 'transform'
+DAG_ID = 'transformation_pipeline'
 
 def _trigger_composer_dag(filename: str, bucket: str, web_server_url: str, dag_id: str):
     """

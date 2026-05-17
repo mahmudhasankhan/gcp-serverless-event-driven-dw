@@ -160,6 +160,39 @@ def transform():
 
         logger.error("Staging job failed — routing to failure email.")
         return 'send_failure_email'
+    
+    # ── Branch: stop pipeline if marts test failed ────────────────────────────────
+    @task.branch(task_id='branch_after_marts_test', trigger_rule=TriggerRule.ALL_DONE)
+    def branch_after_marts(**context):
+        """
+        Checks the exit state of dbt-marts-test-job.
+        Routes to either success email or failure email if successful, failure email if not.
+        """
+        from airflow.utils.state import State
+
+        task_instance = context['dag_run'].get_task_instance(
+            'test_marts_group.execute_marts_test_job'
+        )
+        if task_instance and task_instance.state == State.SUCCESS:
+            logger.info("Marts test passed — sending success email.")
+            return 'send_success_email'
+
+        logger.error("Marts test failed — routing to failure email.")
+        return 'send_failure_email'
+    
+    @task.branch(task_id='branch_after_transform', trigger_rule=TriggerRule.ALL_DONE)
+    def branch_after_transform(**context):
+        from airflow.utils.state import State
+
+        task_instance = context['dag_run'].get_task_instance(
+            'transform_data_group.execute_transform_job'
+        )
+        if task_instance and task_instance.state == State.SUCCESS:
+            logger.info("Transform job passed — proceeding to marts test.")
+            return 'test_marts_group.execute_marts_test_job'
+
+        logger.error("Transform job failed or skipped — routing to failure email.")
+        return 'send_failure_email'
 
     # ── Task Group 2: Transform ────────────────────────────────────────────────
     # dbt-transform-job runs: dbt run --select marts
@@ -292,21 +325,25 @@ def transform():
 
     # ── Dependencies ───────────────────────────────────────────────────────────
 
-    staging_group   = test_raw_data_group()
-    branch          = branch_after_staging()
+    staging_group = test_raw_data_group()
+    branch_staging = branch_after_staging()
     transform_group = transform_data_group()
-    marts_group     = test_marts_group()
+    branch_transform = branch_after_transform()
+    marts_group = test_marts_group()
+    branch_marts = branch_after_marts()
 
     # main flow
-    start >> staging_group >> branch
+    start >> staging_group >> branch_staging
 
-    # happy path
-    branch >> transform_group >> marts_group
-    marts_group >> send_success_email >> end
+    # staging pass → transform → branch → marts → branch → email
+    branch_staging >> transform_group >> branch_transform
+    branch_transform >> marts_group >> branch_marts
 
-    # failure paths
-    branch >> send_failure_email
-    marts_group >> send_failure_email
+    # explicit failure/skip routing at every stage
+    branch_staging >> send_failure_email
+    branch_transform >> send_failure_email
+    branch_marts >> send_success_email >> end
+    branch_marts >> send_failure_email >> end
     send_failure_email >> end
 
 

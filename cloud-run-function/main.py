@@ -3,6 +3,7 @@ import functions_framework
 import requests
 import pandas as pd
 import logging
+import sys
 
 from io import BytesIO
 from pathlib import Path
@@ -18,6 +19,12 @@ from google.auth.transport.requests import AuthorizedSession
 TABLE_ID = "sales-datawarehouse.raw_data.sales"
 WEB_SERVER_URL = "https://88d2e9eba36448fbad243b7923dfbd8b-dot-asia-south2.composer.googleusercontent.com"
 
+# ── Setup Logging correctly for Cloud Run ────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,                        # Forces logger to capture INFO statements
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stdout                          # Redirects logs to stdout so Cloud Run intercepts them
+)
 logger = logging.getLogger(__name__)
 
 # 1. Initialize credentials at startup (Google Best Practice)
@@ -131,8 +138,9 @@ def extract_and_load(cloud_event):
             result = bq_client.query(query).result()
             
             if list(result)[0].count > 0:
-                logger.warning(f"Batch {BATCH_ID} already loaded — skipping BQ load, triggering DAG anyway.")
+                logger.info(f"Batch {BATCH_ID} already loaded — skipping BQ load, triggering DAG anyway.")
                 _trigger_composer_dag(filename, bucket, WEB_SERVER_URL, DAG_ID)
+                logger.info(f"Duplicate batch bypassed, DAG fired")
                 return "Duplicate batch bypassed, DAG fired", 200
         except NotFound:
             logger.info("Target table not found — BigQuery will create it on load execution.")

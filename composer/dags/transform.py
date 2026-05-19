@@ -271,29 +271,30 @@ def transform():
 
     # ── Trigger Dataplex DAG ───────────────────────────────────────────────────
 
-    # trigger_dataplex_dag = TriggerDagRunOperator(
-    #     task_id='trigger_dataplex_quality_dag',
-    #     trigger_dag_id='stratum_dataplex_quality',
-    #     wait_for_completion=True,
-    #     deferrable=True,
-    #     failed_states=['failed'],
-    #     trigger_rule=TriggerRule.ALL_SUCCESS,
-    # )
+    trigger_dataplex_dag = TriggerDagRunOperator(
+        task_id='trigger_dataplex_quality_dag',
+        trigger_dag_id='automated_data_quality_check_and_profile_scan_pipeline',
+        wait_for_completion=True,
+        deferrable=True,
+        failed_states=['failed'],
+        trigger_rule=TriggerRule.NONE_FAILED,
+    )
 
     # ── Dependencies ───────────────────────────────────────────────────────────
 
     staging_group = test_raw_data_group()
     transform_group = transform_data_group()
     marts_group = test_marts_group()
+    log_pipeline = log_pipeline_success()
 
     # main flow
     start >> staging_group >> transform_group >> marts_group
 
     # set dependencies for final status tasks
-    marts_group >> log_pipeline_success >> send_success_email >> end
+    marts_group >> log_pipeline >> send_success_email >> trigger_dataplex_dag >> end
 
     # The failure email should only be triggered if any of the main tasks failed
-    marts_group >> send_failure_email >> end
+    marts_group >> send_failure_email >> trigger_dataplex_dag >> end
 
 
 # instantiate the DAG

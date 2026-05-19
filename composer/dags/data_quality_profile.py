@@ -21,7 +21,7 @@ import os
 import logging
 from datetime import datetime, timedelta
 
-from airflow.decorators import dag, task_group
+from airflow.decorators import dag, task_group, task
 from airflow.operators.empty import EmptyOperator
 from airflow.operators.email import EmailOperator
 from airflow.providers.google.cloud.operators.dataplex import (
@@ -286,8 +286,8 @@ def dataplex_quality():
             task_id='run_fct_quality_scan',
             project_id=PROJECT_ID,
             region=REGION,
+            deferrable=True,
             data_scan_id='fct-quality-scan',
-            deferrable=True
         )
 
         get_results = DataplexGetDataQualityScanResultOperator(
@@ -362,6 +362,7 @@ def dataplex_quality():
             task_id='run_monthly_scan',
             project_id=PROJECT_ID,
             region=REGION,
+            deferrable=True,
             data_scan_id='monthly-revenue-scan',
         )
         get_monthly = DataplexGetDataQualityScanResultOperator(
@@ -424,6 +425,7 @@ def dataplex_quality():
             task_id='run_quarterly_scan',
             project_id=PROJECT_ID,
             region=REGION,
+            deferrable=True,
             data_scan_id='quarterly-revenue-scan',
         )
         get_quarterly = DataplexGetDataQualityScanResultOperator(
@@ -479,6 +481,7 @@ def dataplex_quality():
             task_id='run_yearly_scan',
             project_id=PROJECT_ID,
             region=REGION,
+            deferrable=True,
             data_scan_id='yearly-revenue-scan',
         )
         get_yearly = DataplexGetDataQualityScanResultOperator(
@@ -488,6 +491,9 @@ def dataplex_quality():
             data_scan_id='yearly-revenue-scan',
             job_id="{{ task_instance.xcom_pull(task_ids='revenue_marts_scan_group.run_yearly_scan').split('/')[-1] }}",
         )
+
+        # Step 1: Force creation tasks into a strict, quota-safe line
+        create_monthly >> create_quarterly >> create_yearly
 
         # All three run in parallel within this group
         create_monthly   >> run_monthly   >> get_monthly
@@ -562,6 +568,7 @@ def dataplex_quality():
                 task_id=f'run_{prefix}_scan',
                 project_id=PROJECT_ID,
                 region=REGION,
+                deferrable=True,
                 data_scan_id=f'{prefix}-scan',
             )
             get = DataplexGetDataQualityScanResultOperator(
@@ -642,6 +649,7 @@ def dataplex_quality():
                 task_id=f'run_{prefix}_ranking_scan',
                 project_id=PROJECT_ID,
                 region=REGION,
+                deferrable=True,
                 data_scan_id=f'{prefix}-ranking-scan',
             )
             get = DataplexGetDataQualityScanResultOperator(
@@ -715,6 +723,7 @@ def dataplex_quality():
             task_id='run_shipment_scan',
             project_id=PROJECT_ID,
             region=REGION,
+            deferrable=True,
             data_scan_id='shipment-scan',
         )
 
@@ -752,6 +761,7 @@ def dataplex_quality():
             task_id='run_profile_scan',
             project_id=PROJECT_ID,
             region=REGION,
+            deferrable=True,
             data_scan_id='fct-profile-scan',
         )
 
@@ -766,78 +776,73 @@ def dataplex_quality():
 
     # ── Summary email ─────────────────────────────────────────────────────────
     # Single consolidated email after all six scan groups complete
-    # ALL_DONE so it fires whether scans passed or failed
 
-    # send_summary_email = EmailOperator(
-    #     task_id='send_summary_email',
-    #     to=ALERT_EMAIL,
-    #     subject='Dataplex Quality Scan Results — {{ ds }}',
-    #     html_content="""
-    #     <h2>Knowledge Catalog Scan Results</h2>
-    #     <table border="1" cellpadding="6" cellspacing="0">
-    #         <tr><td><b>DAG</b></td><td>{{ dag.dag_id }}</td></tr>
-    #         <tr><td><b>Execution Date</b></td><td>{{ ds }}</td></tr>
-    #         <tr><td><b>Run ID</b></td><td>{{ run_id }}</td></tr>
-    #     </table>
+    send_summary_email = EmailOperator(
+        task_id='send_summary_email',
+        to=ALERT_EMAIL,
+        subject='Dataplex Quality Scan Results — {{ ds }}',
+        html_content="""
+        <h2>Knowledge Catalog Scan Results</h2>
+        <table border="1" cellpadding="6" cellspacing="0">
+            <tr><td><b>DAG</b></td><td>{{ dag.dag_id }}</td></tr>
+            <tr><td><b>Execution Date</b></td><td>{{ ds }}</td></tr>
+            <tr><td><b>Run ID</b></td><td>{{ run_id }}</td></tr>
+        </table>
 
-    #     <h3>Tables scanned</h3>
-    #     <ul>
-    #         <li>fct_grocery_sales — structural integrity (PK, FKs, financial measures)</li>
-    #         <li>monthly_revenue_growth / quarterly_revenue_growth / yearly_revenue_growth</li>
-    #         <li>ytd / mtd / qtd revenue growth models</li>
-    #         <li>city / customer / product / region / salesperson rankings</li>
-    #         <li>shipment_exp_comparison_by_ship_company</li>
-    #         <li>fct_grocery_sales — column profile (data drift detection)</li>
-    #     </ul>
+        <h3>Tables scanned</h3>
+        <ul>
+            <li>fct_grocery_sales — structural integrity (PK, FKs, financial measures)</li>
+            <li>monthly_revenue_growth / quarterly_revenue_growth / yearly_revenue_growth</li>
+            <li>ytd / mtd / qtd revenue growth models</li>
+            <li>city / customer / product / region / salesperson rankings</li>
+            <li>shipment_exp_comparison_by_ship_company</li>
+            <li>fct_grocery_sales — column profile (data drift detection)</li>
+        </ul>
 
-    #     <h3>fct_grocery_sales quality results</h3>
-    #     <pre>{{ task_instance.xcom_pull(
-    #         task_ids='fct_quality_scan_group.get_fct_quality_results'
-    #     ) | tojson(indent=4) }}</pre>
+        <h3>fct_grocery_sales quality results</h3>
+        <pre>{{ task_instance.xcom_pull(
+            task_ids='fct_quality_scan_group.get_fct_quality_results'
+        ) | tojson(indent=4) }}</pre>
 
-    #     <p>
-    #         Full results for all scans exported to
-    #         <b>warehouse.dq_results</b> in BigQuery.
-    #     </p>
-    #     """,
-    #     trigger_rule=TriggerRule.NONE_FAILED,
-    # )
+        <p>
+            Full results for all scans exported to
+            <b>warehouse.dq_results</b> in BigQuery.
+        </p>
+        """,
+        trigger_rule=TriggerRule.NONE_FAILED,
+    )
 
+    @task(task_id='log_pipeline_success', trigger_rule=TriggerRule.ALL_SUCCESS)
+    def log_pipeline_success(**context):
+        logger.info(
+            f"\n{'='*42}\n"
+            f"🎉 DATA QUALITY PIPELINE COMPLETED SUCCESSFULLY 🎉\n"
+            f"{'='*42}\n"
+            f"DAG            : {context['dag'].dag_id}\n"
+            f"Execution Date : {context['ds']}\n"
+            f"Run ID         : {context['run_id']}\n"
+            f"{'='*42}"
+        )
+    
     end = EmptyOperator(
         task_id='end',
         trigger_rule=TriggerRule.ALL_DONE,
     )
 
     # ── Dependencies ──────────────────────────────────────────────────────────
-    # All six scan groups run in parallel after start
-    # Summary email and end converge after all groups finish
 
     fct_group      = fct_quality_scan_group()
-    # revenue_group  = revenue_marts_scan_group()
+    revenue_group  = revenue_marts_scan_group()
     # growth_group   = growth_models_scan_group()
     # rankings_group = rankings_scan_group()
     # shipment_group = shipment_scan_group()
-    # profile_group  = profile_scan_group()
+    profile_group  = profile_scan_group()
+    log_pipeline = log_pipeline_success()
 
-    # start >> [
-    #     fct_group,
-    #     # revenue_group,
-    #     # growth_group,
-    #     # rankings_group,
-    #     # shipment_group,
-    #     # profile_group,
-    # ]
-
-    # [
-    #     fct_group,
-    #     # revenue_group,
-    #     # growth_group,
-    #     # rankings_group,
-    #     # shipment_group,
-    #     # profile_group,
-    # ] >> send_summary_email >> end
-
-    start >> fct_group >> end
+    # start >> fct_group >> revenue_group >> growth_group >> rankings_group >> shipment_group >> log_pipeline
+    start >> fct_group >> revenue_group >> log_pipeline
+    start >> profile_group >> log_pipeline 
+    log_pipeline >> send_summary_email >> end
 
 
 dataplex_quality()

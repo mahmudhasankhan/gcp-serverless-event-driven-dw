@@ -833,14 +833,13 @@ def dataplex_quality():
 
     fct_group      = fct_quality_scan_group()
     revenue_group  = revenue_marts_scan_group()
-    # growth_group   = growth_models_scan_group()
-    # rankings_group = rankings_scan_group()
-    # shipment_group = shipment_scan_group()
+    growth_group   = growth_models_scan_group()
+    rankings_group = rankings_scan_group()
+    shipment_group = shipment_scan_group()
     profile_group  = profile_scan_group()
     log_pipeline = log_pipeline_success()
 
-    # start >> fct_group >> revenue_group >> growth_group >> rankings_group >> shipment_group >> log_pipeline
-    start >> fct_group >> revenue_group >> log_pipeline
+    start >> fct_group >> revenue_group >> growth_group >> rankings_group >> shipment_group >> log_pipeline
     start >> profile_group >> log_pipeline 
     log_pipeline >> send_summary_email >> end
 

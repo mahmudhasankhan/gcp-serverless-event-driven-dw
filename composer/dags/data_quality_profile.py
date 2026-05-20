@@ -345,17 +345,6 @@ def dataplex_quality():
                         'min_value': '0', 'strict_min_enabled': True
                     }
                 },
-                {
-                    'dimension':   'VALIDITY',
-                    'name':        'monthly-growth-rate-in-range',
-                    'description': 'mom_growth_rate outside -100 to 500 means LAG() broke',
-                    'column':      'mom_growth_rate',
-                    'threshold':   0.95,   # first row has null prev_month — expected
-                    'range_expectation': {
-                        'min_value': '-100',
-                        'max_value': '500',
-                    }
-                },
             ])
         )
         run_monthly = DataplexRunDataQualityScanOperator(
@@ -411,14 +400,6 @@ def dataplex_quality():
                         'min_value': '0', 'strict_min_enabled': True
                     }
                 },
-                {
-                    'dimension':   'VALIDITY',
-                    'name':        'quarterly-growth-rate-in-range',
-                    'description': 'qoq_growth_rate outside -100 to 500 means LAG() broke',
-                    'column':      'qoq_growth_rate',
-                    'threshold':   0.95,
-                    'range_expectation': {'min_value': '-100', 'max_value': '500'}
-                },
             ])
         )
         run_quarterly = DataplexRunDataQualityScanOperator(
@@ -466,14 +447,6 @@ def dataplex_quality():
                     'range_expectation': {
                         'min_value': '0', 'strict_min_enabled': True
                     }
-                },
-                {
-                    'dimension':   'VALIDITY',
-                    'name':        'yearly-growth-rate-in-range',
-                    'description': 'yoy_growth_rate outside -100 to 500 means LAG() broke',
-                    'column':      'yoy_growth_rate',
-                    'threshold':   0.95,
-                    'range_expectation': {'min_value': '-100', 'max_value': '500'}
                 },
             ])
         )

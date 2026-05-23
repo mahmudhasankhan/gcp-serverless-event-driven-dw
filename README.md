@@ -1,6 +1,6 @@
-# Stratum — Cloud-Native Event-Driven ELT Pipeline
+# Cloud Native Data Platform & Automated Governance Framework
 
-A fully serverless, event-driven ELT pipeline on GCP that ingests monthly Excel sales data through a web UI, loads it into BigQuery, orchestrates dbt transformations via Cloud Composer, and governs data quality using Dataplex Universal Catalog. Nothing runs locally — every component lives in the cloud.
+A fully serverless, event-driven, cloud native data platform on GCP that ingests monthly Excel sales data through a web UI, loads it into BigQuery, orchestrates dbt transformations via Cloud Composer, creates a warehouse and governs data quality using Knowledge Catalog (Dataplex).
 
 ---
 
@@ -65,19 +65,19 @@ The first cloud iteration introduced Eventarc, Cloud Run, and GCS as the ingesti
 ## Repository Structure
 
 ```
-stratum-elt-pipeline/
+cloud-native-data-platform/
 │
-├── web_portal/                        # FastAPI upload UI (Cloud Run service)
+├── cloud-run-fastapi-server/                        # FastAPI upload UI (Cloud Run service)
 │   ├── main.py                        # /upload endpoint → GCS
 │   ├── index.html                     # drag-and-drop upload interface
 │   ├── Dockerfile
 │   └── requirements.txt
 │
-├── cloud_run/                         # Extract-load function (Cloud Run service)
+├── cloud_run-function/                         # Extract-load function (Cloud Run service)
 │   ├── main.py                        # GCS → clean → BQ → trigger Composer
 │   └── requirements.txt
 │
-├── dbt-jobs/                          # dbt Cloud Run Jobs
+├── cloud-run-dbt-jobs/                          # dbt Cloud Run Jobs
 │   ├── Dockerfile.staging             # Job 1: source tests + quarantine + staging
 │   ├── Dockerfile.transform           # Job 2: dbt run --select marts
 │   ├── Dockerfile.marts-test          # Job 3: dbt test --select marts

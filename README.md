@@ -244,7 +244,7 @@ bq mk --dataset YOUR_PROJECT:quarantine
 
 ```bash
 gcloud iam service-accounts create bigquery-service \
-  --display-name="Stratum Upload and Extract-Load SA"
+  --display-name="Upload and Extract-Load SA"
 
 for role in \
   roles/storage.objectCreator \
@@ -319,7 +319,7 @@ gcloud builds submit --config cloudbuild.marts-test.yml .
 ### 7. Create Cloud Composer 3 environment
 
 ```bash
-gcloud composer environments create stratum-composer \
+gcloud composer environments create composer \
   --location=asia-south2 \
   --composer-version=3 \
   --project=YOUR_PROJECT
@@ -328,7 +328,7 @@ gcloud composer environments create stratum-composer \
 Creation takes 20–30 minutes. Get the webserver URL after:
 
 ```bash
-gcloud composer environments describe stratum-composer \
+gcloud composer environments describe composer \
   --location=asia-south2 \
   --format="value(config.airflowUri)"
 ```
@@ -340,7 +340,7 @@ the extract-load function.
 
 ```bash
 # Set Airflow config overrides
-gcloud composer environments update stratum-composer \
+gcloud composer environments update composer \
   --location=asia-south2 \
   --update-airflow-configs="\
 core-dags_are_paused_at_creation=True,\
@@ -348,7 +348,7 @@ core-max_active_runs_per_dag=1,\
 scheduler-min_file_process_interval=60"
 
 # Set environment variables
-gcloud composer environments update stratum-composer \
+gcloud composer environments update composer \
   --location=asia-south2 \
   --update-env-variables="\
 PROJECT_ID=YOUR_PROJECT,\
@@ -364,7 +364,7 @@ ALERT_EMAIL=your-email@gmail.com"
 # smtp/smtp_mail_from = your-email@gmail.com
 
 # Add SMTP connection
-gcloud composer environments run stratum-composer \
+gcloud composer environments run composer \
   --location=asia-south2 \
   connections add smtp_default \
   -- \
@@ -378,7 +378,7 @@ gcloud composer environments run stratum-composer \
 ### 9. Grant Composer SA permissions
 
 ```bash
-COMPOSER_SA=$(gcloud composer environments describe stratum-composer \
+COMPOSER_SA=$(gcloud composer environments describe composer \
   --location=asia-south2 \
   --format="value(config.nodeConfig.serviceAccount)")
 
@@ -403,7 +403,7 @@ gcloud iam service-accounts add-iam-policy-binding \
 ### 10. Upload DAGs
 
 ```bash
-BUCKET=$(gcloud composer environments describe stratum-composer \
+BUCKET=$(gcloud composer environments describe composer \
   --location=asia-south2 \
   --format="value(config.dagGcsPrefix)")
 
@@ -414,11 +414,11 @@ gcloud storage cp composer/dags/data_quality_profile.py  $BUCKET/
 Unpause both DAGs in the Airflow UI or via CLI:
 
 ```bash
-gcloud composer environments run stratum-composer \
+gcloud composer environments run composer \
   --location=asia-south2 \
   dags unpause -- transformation_pipeline
 
-gcloud composer environments run stratum-composer \
+gcloud composer environments run composer \
   --location=asia-south2 \
   dags unpause -- automated_data_quality_check_and_profile_scan_pipeline
 ```
@@ -456,7 +456,7 @@ https://fastapi-upload-xxxx-as.a.run.app
 ### Manual trigger for testing
 
 ```bash
-gcloud composer environments run stratum-composer \
+gcloud composer environments run composer \
   --location=asia-south2 \
   dags trigger -- transformation_pipeline
 ```
